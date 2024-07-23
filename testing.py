@@ -1,22 +1,18 @@
 from dynesty import NestedSampler, DynamicNestedSampler
-import numpy as np
 import time
 
 ndim = [3]
 
+
 def prior(x):
     return -1 + x * 3
 
+
 def loglike(x, dim):
-    # Calculate the Rosenbrock function value in ten dimensions
     a = 1
     b = 100
     rosenbrock = sum((a - x[i])**2 + b * (x[i+1] - x[i]**2)**2 for i in range(dim - 1))
-    
-    # Return the negative of the Rosenbrock function value
     return -rosenbrock
-
-# initialize our nested sampler
 
 
 for i, dim in enumerate(ndim):
@@ -28,10 +24,12 @@ for i, dim in enumerate(ndim):
     elapsed_time = end_time - start_time
     results = sampler.results
 
-
-    dsampler = DynamicNestedSampler(lambda x: loglike(x, dim), prior, dim,  bound='single')
+    dsampler = DynamicNestedSampler(lambda x: loglike(x, dim), 
+                                    prior, 
+                                    dim,  
+                                    bound='single')
     dsampler.run_nested(dlogz_init=0.05, nlive_init=500, nlive_batch=100,
-                    maxiter_init=10000, maxiter_batch=1000, maxbatch=10)
+                        maxiter_init=10000, maxiter_batch=1000, maxbatch=10)
     dresults = dsampler.results
 
 

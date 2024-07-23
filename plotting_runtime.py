@@ -2,41 +2,70 @@ import csv
 import matplotlib.pyplot as plt
 import numpy as np
 
-dimensions = []
+livepoints = []
 runtimes = []
 likelihood = []
 likelihood_err = []
 
-with open('runtime.csv', 'r') as file:
+with open('livepoints.csv', 'r') as file:
     reader = csv.reader(file)
     next(reader)  # Skip the header
     for row in reader:
-        dimensions.append(int(row[0]))
+        livepoints.append(int(row[0]))
         runtimes.append(float(row[1]))
         likelihood.append(float(row[2]))
         likelihood_err.append(float(row[4]))
 
+livepoints = np.array(livepoints)
+runtimes = np.array(runtimes)
+likelihood = np.array(likelihood)
+likelihood_err = np.array(likelihood_err)
 
+likelihood_mean = np.mean(likelihood)
+likelihood_mean_err = np.sqrt(np.sum((likelihood_err/len(likelihood_err))**2))
+print("likelihood mean: ", likelihood_mean, likelihood_mean_err)
 
-fig, ax1 = plt.subplots()
+coefficients_linear, covariance_matrix = np.polyfit(np.log10(livepoints),
+                                                    np.log10(runtimes),
+                                                    1,
+                                                    cov=True)
 
-ax1.plot(dimensions, runtimes, marker='o', linestyle='-', color='b')
-ax1.set_xlabel('Dimensions')
-ax1.set_ylabel('Elapsed Time (seconds)', color='b')
-ax1.set_yscale('log')
-ax1.set_xscale('log')
-ax1.tick_params(axis='y', labelcolor='b')
+polynomial_linear = np.poly1d(coefficients_linear)
 
-ax1.set_xlim([1, 10])
+standard_errors = np.sqrt(np.diag(covariance_matrix))
+print("linear fit", coefficients_linear, standard_errors)
 
-ax2 = ax1.twinx()
-ax2.errorbar(dimensions, np.abs(likelihood), yerr=likelihood_err, color='r')
-ax2.set_ylabel('Loglikelihood', color='r')
-#ax2.set_xscale('log')
-ax2.tick_params(axis='y', labelcolor='r')
+x_values = np.logspace(np.log10(livepoints.min()), np.log10(livepoints.max()), 100)
 
-ax1.grid(True)
+fit_values = 10 ** polynomial_linear(np.log10(x_values))
 
-plt.title('Runtime of Nested Sampling on the Rosenbrock Function')
+coeffs_upper = coefficients_linear + standard_errors
+coeffs_lower = coefficients_linear - standard_errors
 
-plt.show()
+fit_upper = 10 ** (np.polyval(coeffs_upper, np.log10(x_values)))
+fit_lower = 10 ** (np.polyval(coeffs_lower, np.log10(x_values)))
+
+plt.figure(figsize=(7, 5))
+plt.grid(True, which="both", ls="--")
+plt.fill_between(x_values, fit_lower, fit_upper, color='green', alpha=0.3, label=r'$\sigma$')
+plt.plot(x_values, fit_values, color='green', label='Linear Fit ($O(n_{live}^k$), $k=0.98\pm0.02$)', linestyle='--')
+plt.plot(livepoints, livepoints/180, color='darkgreen', label=r'$O(n_{live})$')
+plt.scatter(livepoints, runtimes, color='black', label='Runtime Data', marker='o')
+plt.xscale('log')
+plt.yscale('log')
+plt.xlabel(r'$\log(n_{live})$', fontsize=16)
+plt.ylabel(r'$\log$(runtime) [s]', fontsize=16)
+plt.legend(fontsize=14)
+plt.savefig('plots/runtime_livepoints_plot.png')
+
+plt.figure(figsize=(7, 5))
+plt.errorbar(livepoints, likelihood, likelihood_err, 0, capsize=5,
+             elinewidth=1, capthick=2, ecolor='black', color='black', label=r'$\log(Z)$ measurement')
+plt.axhline(y=likelihood_mean, color='green', linestyle='--', label=r'$\langle\log(Z)\rangle=-3.70\pm0.02$')
+plt.fill_between(livepoints, likelihood_mean+likelihood_mean_err, likelihood_mean-likelihood_mean_err, color='green', alpha=0.3)
+plt.xscale('log')
+plt.grid(color='grey')
+plt.xlabel(r'$\log(n_{live})$', fontsize=16)
+plt.ylabel(r'$\log$(Z)', fontsize=16)
+plt.legend()
+plt.savefig('plots/likelihood_livepoints_plot.png')
